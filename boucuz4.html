@@ -317,8 +317,28 @@
         // Touch controls for mobile
         let activeTouchId = null;
         function handleTouch(e) {
-            if (!state || state.mode === "menu") return;
+            if (!state) return;
             e.preventDefault();
+
+            // Taps on menus/paused/gameover act like Space
+            if (state.mode === "menu") {
+                if (state.menuScreen === 1) {
+                    state.menuScreen = 2;
+                } else {
+                    startGame();
+                }
+                return;
+            }
+            if (state.mode === "gameover") {
+                startGame();
+                return;
+            }
+            if (state.mode === "paused") {
+                state.mode = "playing";
+                return;
+            }
+
+            // In-game: left third = left, right third = right, middle = jump
             const touch = e.changedTouches[0];
             const rect = canvas.getBoundingClientRect();
             const x = touch.clientX - rect.left;
