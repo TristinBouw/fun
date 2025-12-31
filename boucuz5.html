@@ -1,0 +1,1440 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>BouwCuz Boarding</title>
+    <style>
+        body {
+            margin: 0;
+            background: linear-gradient(#e6f4ff 0%, #d5edff 100%);
+            overflow: hidden;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        canvas {
+            display: block;
+            margin: auto;
+            background: #ffffff;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+            border-radius: 6px;
+        }
+
+        .overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <canvas id="game"></canvas>
+
+    <script>
+        const canvas = document.getElementById("game");
+        const ctx = canvas.getContext("2d");
+
+        function resizeCanvas() {
+            const padding = 16;
+            canvas.width = Math.max(360, Math.min(window.innerWidth - padding, 1100));
+            canvas.height = Math.max(500, Math.min(Math.floor(window.innerHeight * 0.92), 1100));
+        }
+        resizeCanvas();
+        window.addEventListener("resize", resizeCanvas);
+
+        const TWO_PI = Math.PI * 2;
+        const bearLargeNames = ["Grandpa B", "Grandma B"];
+        const bearMediumNames = ["U Harwin", "U Jared", "U Clancy", "U Tristin", "U Ben", "U Jon"];
+        const babyNames = ["Brady", "Issac", "Audrey", "Breanne", "Amos", "Lainey"];
+        const babyMoms = { Brady: "A Riana", Amos: "A Riana", Issac: "A Christina", Lainey: "A Christina", Audrey: "A Janita", Breanne: "A Janita" };
+        const babyGenders = { Brady: "boy", Issac: "boy", Amos: "boy", Audrey: "girl", Breanne: "girl", Lainey: "girl" };
+        const moms = ["A Riana", "A Christina", "A Janita", "A Jolene", "A Emma"];
+        const characters = [
+            { name: "Roxanne", gender: "girl", suit: "#7a35c8", jumpSuit: "#b57bff", board: "#4b1b8d", poles: "#1f1f1f", hat: "#2f124f", skin: "#ffe6d5" },
+            { name: "Tonya", gender: "girl", suit: "#a24dd8", jumpSuit: "#cfa0ff", board: "#5f2ca3", poles: "#1f1f1f", hat: "#3c166d", skin: "#f7dec3" },
+            { name: "Conrad", gender: "boy", suit: "#2aa952", jumpSuit: "#6adf91", board: "#1f5f34", poles: "#1f1f1f", hat: "#0f2f0f", skin: "#f1d2b4" },
+            { name: "Myla", gender: "girl", suit: "#8c42c6", jumpSuit: "#bc8aff", board: "#5a2699", poles: "#1f1f1f", hat: "#32125e", skin: "#ffe6d5" },
+            { name: "Winston", gender: "boy", suit: "#3bbf6a", jumpSuit: "#81e7a6", board: "#2a7f4a", poles: "#1f1f1f", hat: "#155027", skin: "#f7dec3" },
+            { name: "Annelise", gender: "girl", suit: "#a45bd8", jumpSuit: "#d2a8ff", board: "#6b30a3", poles: "#1f1f1f", hat: "#3c166d", skin: "#f1d2b4" },
+            { name: "Esmae", gender: "girl", suit: "#9046cc", jumpSuit: "#c28bff", board: "#5c2399", poles: "#1f1f1f", hat: "#31135d", skin: "#ffe6d5" },
+            { name: "Owen", gender: "boy", suit: "#31b55d", jumpSuit: "#70df97", board: "#237547", poles: "#1f1f1f", hat: "#0f3d22", skin: "#f7dec3" },
+            { name: "Liandra", gender: "girl", suit: "#9d4fd2", jumpSuit: "#cfa0ff", board: "#642a9c", poles: "#1f1f1f", hat: "#391672", skin: "#f1d2b4" },
+            { name: "Kiely", gender: "girl", suit: "#7d39c9", jumpSuit: "#b57bff", board: "#502093", poles: "#1f1f1f", hat: "#2e1257", skin: "#ffe6d5" },
+            { name: "Ezden", gender: "boy", suit: "#2fb15a", jumpSuit: "#6edc93", board: "#226f41", poles: "#1f1f1f", hat: "#0f3d22", skin: "#f7dec3" },
+            { name: "Joash", gender: "boy", suit: "#33b864", jumpSuit: "#75e3a1", board: "#247544", poles: "#1f1f1f", hat: "#104726", skin: "#f1d2b4" },
+            { name: "Tirzah", gender: "girl", suit: "#a85fe0", jumpSuit: "#d7b2ff", board: "#7133a8", poles: "#1f1f1f", hat: "#431a78", skin: "#ffe6d5" }
+        ];
+        const levels = [
+            { name: "Level 1: Freeride", storms: false, babies: false, stormIntervalMs: Infinity, stormCount: 0, targetDistance: 10000, speedScale: 1, requireAllBabies: false, instructions: "Avoid trees/rocks, grab presents and jumps for money/score." },
+            { name: "Level 2: Rescue", storms: true, babies: true, stormIntervalMs: 60000, stormCount: 1, targetDistance: 10000, speedScale: 1, requireAllBabies: false, instructions: "Rescue as many babies as you can through one storm." },
+            { name: "Level 3: Rescue & Storms", storms: true, babies: true, stormIntervalMs: 60000, stormCount: Infinity, targetDistance: 10000, speedScale: 1, requireAllBabies: true, instructions: "Rescue and deliver all babies to mums with multiple storms." },
+            { name: "Level 4: Faster Storms", storms: true, babies: true, stormIntervalMs: 45000, stormCount: Infinity, targetDistance: 10000, speedScale: 1.1, requireAllBabies: true, instructions: "Same rescue goal, faster storms and speed." },
+            { name: "Level 5: Fastest Storms", storms: true, babies: true, stormIntervalMs: 30000, stormCount: Infinity, targetDistance: 10000, speedScale: 1.5, requireAllBabies: true, instructions: "Fastest run—rescue all babies to win." }
+        ];
+        const config = {
+            baseSpeed: 2.2,
+            maxSpeed: 5.6,
+            acceleration: 0.0008,
+            spawnInterval: 650,
+            minSpawnInterval: 260,
+            jumpDuration: 650,
+            giftChance: 0.18,
+            giftValue: 150,
+            caribouValue: 120,
+            maxLives: 10,
+            invulnMs: 1200,
+            yetiFirstDistance: 2200,
+            yetiSpacing: 1400,
+            caribouChance: 0.12,
+            babyChance: 0.08,
+            stormWarnDistance: 1800,
+            stormDelayMs: 9000,
+            stormIntervalMs: 60000,
+            iglooCost: 100,
+            shelterPauseMs: 2000,
+            caribouWalkSpeed: 0.12,
+            treeBiasDistance: 4000,
+            stormEffectMs: 5000
+        };
+
+        const clamp = (val, min, max) => Math.min(max, Math.max(min, val));
+
+        let state = {
+            mode: "menu",
+            menuScreen: 1,
+            distance: 0,
+            score: 0,
+            money: 0,
+            lives: 3,
+            characterIndex: 0,
+            character: characters[0],
+            levelIndex: 0,
+            level: levels[0],
+            skier: { x: canvas.width / 2, y: 130, angle: 0, speed: 2, jump: 0, trickTimer: 0, trickTotal: 1, slideHold: 0, isSliding: false },
+            obstacles: [],
+            yetis: [],
+            largeIndex: 0,
+            nextYetiDistance: config.yetiFirstDistance,
+            nextBearIdx: 0,
+            nextMediumIdx: 0,
+            spawnTimer: 0,
+            lastTime: 0,
+            message: "",
+            best: loadBest(),
+            carriedBabies: [],
+            savedBabies: [],
+            activeBabies: [],
+            remainingBabies: [...babyNames],
+            babiesSaved: 0,
+            celebrationTimer: 0,
+            fieldChallenge: { active: false, targets: [], completed: false },
+            snowballs: [],
+            storm: { warned: false, timer: 0, active: false, resolved: false, effect: 0, inIgloo: false, particles: [], intensity: 0, shelterTimer: 0, damageApplied: false, nextAt: performance.now() + levels[0].stormIntervalMs, safeInStorm: false, remaining: levels[0].stormCount }
+        };
+
+        const keys = {};
+        let touchKeys = { left: false, right: false };
+
+        function loadBest() {
+            try {
+                return parseInt(localStorage.getItem("bestDistance") || "0", 10);
+            } catch {
+                return 0;
+            }
+        }
+
+        function saveBest(score) {
+            try {
+                const best = Math.max(score, loadBest());
+                localStorage.setItem("bestDistance", best);
+                state.best = best;
+            } catch {
+                // Ignore storage errors
+            }
+        }
+
+        function attemptCaribouStrike() {
+            let targetIndex = -1;
+            let closest = Infinity;
+            for (let i = 0; i < state.obstacles.length; i++) {
+                const o = state.obstacles[i];
+                if (o.type !== "caribou" || o.dead) continue;
+                const dx = o.x - state.skier.x;
+                const dy = o.y - state.skier.y;
+                const d = Math.hypot(dx, dy);
+                if (d < 36 && d < closest) {
+                    closest = d;
+                    targetIndex = i;
+                }
+            }
+            if (targetIndex === -1) return false;
+            const o = state.obstacles[targetIndex];
+            o.dead = true;
+            o.deadTimer = 500;
+            state.score += config.caribouValue;
+            state.money += config.caribouValue;
+            state.message = "Caribou hunted +$" + config.caribouValue;
+            return true;
+        }
+
+        function spawnBabyFromRemaining() {
+            const available = state.remainingBabies.filter(
+                b => !state.carriedBabies.includes(b) && !state.activeBabies.includes(b)
+            );
+            if (!available.length) return false;
+            const name = available[Math.floor(Math.random() * available.length)];
+            state.activeBabies.push(name);
+            state.obstacles.push({
+                x: Math.random() * (canvas.width - 40) + 20,
+                y: canvas.height + 30,
+                type: "baby",
+                name,
+                gender: babyGenders[name] || "girl"
+            });
+            return true;
+        }
+
+        function handleJumpPress() {
+            if (state.mode === "playing" && state.storm.inIgloo) {
+                // Always allow immediate exit when pressing Space
+                state.storm.inIgloo = false;
+                state.storm.shelterTimer = 0;
+                state.storm.safeInStorm = false;
+                state.message = "Leaving igloo. Back to the slopes!";
+                state.lastTime = performance.now();
+                return;
+            }
+            if (state.mode === "playing") {
+                const struck = attemptCaribouStrike();
+                if (!struck && state.skier.jump <= 0) {
+                    state.skier.jump = config.jumpDuration;
+                }
+            }
+        }
+
+        function slowDown() {
+            if (state.mode !== "playing") return;
+            if (state.money < 50) return;
+            state.money -= 50;
+            state.skier.speed = Math.max(config.baseSpeed, state.skier.speed * 0.55);
+            state.message = "Slowed down (-$50)";
+        }
+
+        function throwSnowball() {
+            const speed = 8 + state.skier.speed * 0.6;
+            state.snowballs.push({
+                x: state.skier.x,
+                y: state.skier.y,
+                vx: Math.sin(state.skier.angle) * speed,
+                vy: Math.cos(state.skier.angle) * speed + state.skier.speed * 0.3,
+                life: 1400
+            });
+        }
+
+        function buildIgloo() {
+            if (state.mode !== "playing") return;
+            if (state.money < config.iglooCost) return;
+            state.money -= config.iglooCost;
+            state.message = "Igloo built! Ride out the storm.";
+            const mom = moms[Math.floor(Math.random() * moms.length)];
+            state.obstacles.push({ type: "igloo", x: state.skier.x, y: canvas.height + 60, mom });
+        }
+
+        window.addEventListener("keydown", e => {
+            keys[e.key] = true;
+            if (state.mode === "menu" && e.key === " ") {
+                if (state.menuScreen === 1) {
+                    state.menuScreen = 2;
+                } else {
+                    startGame();
+                }
+            } else if (state.mode === "menu" && state.menuScreen === 2 && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+                const dir = e.key === "ArrowLeft" ? -1 : 1;
+                state.characterIndex = (state.characterIndex + dir + characters.length) % characters.length;
+                state.character = characters[state.characterIndex];
+            } else if (state.mode === "menu" && state.menuScreen === 2 && ["1", "2", "3", "4", "5"].includes(e.key)) {
+                const idx = Math.min(levels.length - 1, Math.max(0, parseInt(e.key, 10) - 1));
+                state.levelIndex = idx;
+                state.level = levels[idx];
+                startGame();
+                state.message = "Cheat: Jumped to " + state.level.name;
+            } else if (state.mode === "menu" && state.menuScreen === 2 && (e.key === "q" || e.key === "Q")) {
+                startGame();
+                // Jump straight to field challenge cheat
+                state.remainingBabies = [];
+                state.carriedBabies = [];
+                state.activeBabies = [];
+                state.fieldChallenge.active = true;
+                state.fieldChallenge.targets = [];
+                const cols = 3;
+                const rows = 2;
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        state.fieldChallenge.targets.push({
+                            x: 150 + c * ((canvas.width - 300) / (cols - 1 || 1)),
+                            y: 200 + r * 140,
+                            size: 14
+                        });
+                    }
+                }
+                state.message = "Cheat: Field challenge!";
+            } else if (state.mode === "playing" && (e.key === "u" || e.key === "U")) {
+                // Spawn a burst of presents
+                for (let i = 0; i < 4; i++) {
+                    state.obstacles.push({
+                        x: Math.random() * (canvas.width - 40) + 20,
+                        y: canvas.height + 30 + i * 20,
+                        type: "gift"
+                    });
+                }
+            } else if (state.mode === "playing" && e.key === " ") {
+                handleJumpPress();
+            } else if (state.mode === "playing" && (e.key === "b" || e.key === "B")) {
+                buildIgloo();
+            } else if (state.mode === "playing" && (e.key === "s" || e.key === "S")) {
+                slowDown();
+            } else if (state.mode === "playing" && (e.key === "m" || e.key === "M")) {
+                throwSnowball();
+            } else if (state.mode === "gameover" && (e.key === " " || e.key === "r" || e.key === "R")) {
+                startGame();
+            } else if (state.mode === "playing" && (e.key === "p" || e.key === "P")) {
+                state.mode = "paused";
+            } else if (state.mode === "paused" && (e.key === "p" || e.key === "P")) {
+                state.mode = "playing";
+            }
+        });
+
+        window.addEventListener("keyup", e => {
+            keys[e.key] = false;
+        });
+
+        // Touch controls for mobile
+        let activeTouchId = null;
+        function handleTouch(e) {
+            if (!state) return;
+            e.preventDefault();
+
+            // Taps on menus/paused/gameover act like Space
+            if (state.mode === "menu") {
+                if (state.menuScreen === 1) {
+                    state.menuScreen = 2;
+                } else {
+                    startGame();
+                }
+                return;
+            }
+            if (state.mode === "gameover") {
+                startGame();
+                return;
+            }
+            if (state.mode === "paused") {
+                state.mode = "playing";
+                return;
+            }
+
+            // In-game: left third = left, right third = right, middle = jump
+            const touch = e.changedTouches[0];
+            const rect = canvas.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const zone = x / rect.width;
+
+            // Clear previous
+            keys["ArrowLeft"] = false;
+            keys["ArrowRight"] = false;
+
+            if (zone < 0.33) {
+                keys["ArrowLeft"] = true;
+            } else if (zone > 0.66) {
+                keys["ArrowRight"] = true;
+            } else {
+                handleJumpPress();
+            }
+        }
+
+        function clearTouch() {
+            keys["ArrowLeft"] = false;
+            keys["ArrowRight"] = false;
+        }
+
+        window.addEventListener("touchstart", handleTouch, { passive: false });
+        window.addEventListener("touchmove", handleTouch, { passive: false });
+        window.addEventListener("touchend", clearTouch);
+        window.addEventListener("touchcancel", clearTouch);
+
+        function startGame() {
+            const lvlIdx = state.levelIndex || 0;
+            const lvl = levels[lvlIdx] || levels[levels.length - 1];
+            state = {
+                mode: "playing",
+                menuScreen: 2,
+                distance: 0,
+                score: 0,
+                money: 0,
+                lives: 3,
+                characterIndex: state.characterIndex || 0,
+                character: characters[state.characterIndex || 0],
+                levelIndex: lvlIdx,
+                level: lvl,
+                skier: { x: canvas.width / 2, y: 130, angle: 0, speed: 2, jump: 0, trickTimer: 0, trickTotal: 1, slideHold: 0, isSliding: false },
+                obstacles: [],
+                yetis: [],
+                largeIndex: 0,
+                nextYetiDistance: config.yetiFirstDistance,
+                nextBearIdx: 0,
+                nextMediumIdx: 0,
+                spawnTimer: 0,
+                lastTime: performance.now(),
+                message: state.level.name + " — " + state.level.instructions,
+                best: state.best,
+                carriedBabies: [],
+                savedBabies: [],
+                activeBabies: [],
+                remainingBabies: [...babyNames],
+                babiesSaved: 0,
+                celebrationTimer: 0,
+                fieldChallenge: { active: false, targets: [], completed: false },
+                snowballs: [],
+                storm: { warned: false, timer: 0, active: false, resolved: false, effect: 0, inIgloo: false, particles: [], intensity: 0, shelterTimer: 0, damageApplied: false, nextAt: performance.now() + lvl.stormIntervalMs, safeInStorm: false, remaining: lvl.stormCount }
+            };
+            resizeCanvas();
+        }
+
+        function endGame(reason) {
+            state.mode = "gameover";
+            state.message = reason;
+            saveBest(Math.floor(state.distance));
+        }
+
+        function spawnObstacle() {
+            const roll = Math.random();
+            const distanceFactor = clamp(state.distance / config.treeBiasDistance, 0, 1);
+            let treeWeight = 0.45 + 0.35 * distanceFactor;
+            let rockWeight = Math.max(0.05, 0.35 - 0.25 * distanceFactor);
+
+            // Level-based tweaks: more trees/rocks in levels 4/5
+            if (state.levelIndex >= 3) { // Level 4+
+                treeWeight += 0.08;
+                rockWeight += 0.04;
+            }
+            if (state.levelIndex >= 4) { // Level 5
+                treeWeight += 0.10;
+                rockWeight += 0.05;
+            }
+            // Clamp so jumps still appear
+            const maxObstacleWeight = 0.95;
+            const weightSum = treeWeight + rockWeight;
+            const scale = weightSum > maxObstacleWeight ? maxObstacleWeight / weightSum : 1;
+            treeWeight *= scale;
+            rockWeight *= scale;
+            const jumpWeight = 1 - treeWeight - rockWeight;
+
+            const giftBase = state.distance < config.stormWarnDistance ? config.giftChance + 0.18 : config.giftChance;
+            let giftLevelBonus = 0;
+            if (state.levelIndex >= 3) giftLevelBonus += 0.10;
+            if (state.levelIndex >= 4) giftLevelBonus += 0.05;
+            const boostedGifts = clamp(giftBase + giftLevelBonus, 0, 0.9);
+
+            let type;
+            const needBaby = state.level.babies && state.remainingBabies.length > 0;
+            let babyBias = needBaby ? 0.6 : config.babyChance;
+            if (state.levelIndex >= 3) babyBias = needBaby ? 0.3 : config.babyChance * 0.6;
+            if (state.levelIndex >= 4) babyBias = needBaby ? 0.18 : config.babyChance * 0.4;
+            const levelBabyChance = state.levelIndex >= 4
+                ? config.babyChance * 0.4
+                : state.levelIndex >= 3
+                    ? config.babyChance * 0.6
+                    : config.babyChance;
+
+            if (needBaby && Math.random() < babyBias) {
+                type = "baby";
+            } else if (roll < boostedGifts) {
+                type = "gift";
+            } else if (roll < boostedGifts + config.caribouChance) {
+                type = "caribou";
+            } else if (roll < boostedGifts + config.caribouChance + levelBabyChance) {
+                type = "baby";
+            } else {
+                const sub = Math.random();
+                if (sub < treeWeight) type = "tree";
+                else if (sub < treeWeight + rockWeight) type = "rock";
+                else type = "jump";
+            }
+
+            const base = {
+                x: Math.random() * (canvas.width - 40) + 20,
+                y: canvas.height + 30,
+                type
+            };
+
+            if (type === "caribou") {
+                base.dir = Math.random() > 0.5 ? 1 : -1;
+                base.walkPhase = Math.random() * TWO_PI;
+            }
+            if (type === "baby") {
+                if (!state.level.babies) {
+                    return;
+                }
+                const available = state.remainingBabies;
+                if (!available.length) {
+                    return;
+                } else {
+                    const idx = Math.floor(Math.random() * available.length);
+                    base.name = available[idx];
+                    base.gender = babyGenders[base.name] || "girl";
+                    state.activeBabies.push(base.name);
+                }
+            }
+
+            state.obstacles.push({
+                ...base
+            });
+        }
+
+        function update(timestamp) {
+            if (!state.lastTime) state.lastTime = timestamp;
+            const delta = Math.min(50, timestamp - state.lastTime);
+            state.lastTime = timestamp;
+            if (state.invuln) state.invuln = Math.max(0, state.invuln - delta);
+            if (state.celebrationTimer > 0) state.celebrationTimer = Math.max(0, state.celebrationTimer - delta);
+
+            if (state.mode === "playing") {
+                // Auto-exit igloo when no storm and timer elapsed (failsafe)
+                if (!state.storm.active && !state.storm.warned) {
+                    state.storm.safeInStorm = false;
+                    if (state.storm.shelterTimer <= 0) state.storm.inIgloo = false;
+                }
+                if (state.storm.shelterTimer > 0) {
+                    state.storm.shelterTimer = Math.max(0, state.storm.shelterTimer - delta);
+                }
+                if (keys["ArrowDown"]) {
+                    state.skier.slideHold = Math.min(state.skier.slideHold + delta, 5000);
+                    state.skier.isSliding = true;
+                } else {
+                    state.skier.slideHold = 0;
+                    state.skier.isSliding = false;
+                }
+
+                const targetSpeedBase = state.fieldChallenge.active
+                    ? Math.min(state.skier.speed, config.baseSpeed + 1)
+                    : Math.min(config.baseSpeed + state.distance * config.acceleration, config.maxSpeed);
+                const targetSpeed = targetSpeedBase * (state.level?.speedScale || 1);
+                let adjustedSpeed = targetSpeed;
+                if (keys["ArrowUp"]) adjustedSpeed = Math.max(1.2, targetSpeed - 1);
+                if (keys["ArrowDown"] && !state.fieldChallenge.active) adjustedSpeed = Math.min(config.maxSpeed + 1.5, targetSpeed + 1);
+
+                if (state.skier.isSliding) {
+                    const boost = state.skier.slideHold > 2000 ? (state.skier.slideHold - 2000) * 0.004 : 0;
+                    adjustedSpeed = config.baseSpeed * 0.5 + boost;
+                    adjustedSpeed = Math.min(adjustedSpeed, config.maxSpeed);
+                }
+                state.skier.speed += (adjustedSpeed - state.skier.speed) * 0.08;
+
+                const steerSpeed = 0.2;
+                if (keys["ArrowLeft"]) state.skier.angle -= steerSpeed;
+                if (keys["ArrowRight"]) state.skier.angle += steerSpeed;
+                state.skier.angle = clamp(state.skier.angle, -1.1, 1.1);
+
+                let movement = state.skier.speed * delta * 0.06;
+                if (state.storm.inIgloo && (state.storm.active || state.storm.warned || state.storm.shelterTimer > 0)) {
+                    movement = 0;
+                    state.message = "You're in an igloo. Press Space to leave.";
+                }
+                state.skier.x += Math.sin(state.skier.angle) * movement;
+                state.skier.x = Math.max(20, Math.min(canvas.width - 20, state.skier.x));
+                if (state.fieldChallenge.active) {
+                    state.skier.y += -Math.cos(state.skier.angle) * movement * 0.6;
+                    state.skier.y = Math.max(120, Math.min(canvas.height - 140, state.skier.y));
+                }
+                state.distance += movement;
+
+                if (!state.fieldChallenge.active) {
+                    state.spawnTimer += delta;
+                    const currentSpawn = Math.max(config.minSpawnInterval, config.spawnInterval - state.distance * 0.05);
+                    if (state.spawnTimer > currentSpawn) {
+                        spawnObstacle();
+                        state.spawnTimer = 0;
+                    }
+
+                    for (let o of state.obstacles) {
+                        o.y -= movement * 1.1;
+                        if (o.type === "caribou" && !o.dead) {
+                            o.walkPhase += delta * 0.01;
+                            o.x += o.dir * config.caribouWalkSpeed * delta;
+                            if (o.x < 40 || o.x > canvas.width - 40) o.dir *= -1;
+                        }
+                    }
+                    state.obstacles = state.obstacles.filter(o => o.y > -50);
+                }
+
+                // Snowballs movement
+                state.snowballs.forEach(s => {
+                    s.x += s.vx;
+                    s.y += s.vy;
+                    s.life -= delta;
+                });
+                state.snowballs = state.snowballs.filter(s => s.life > 0 && s.x > -20 && s.x < canvas.width + 20 && s.y > -20 && s.y < canvas.height + 20);
+
+                // Storm warning and arrival based on level
+                if (state.level.storms && (!isFinite(state.storm.remaining) || state.storm.remaining > 0) && !state.storm.warned && !state.storm.active && timestamp >= (state.storm.nextAt || 0)) {
+                    state.storm.warned = true;
+                    state.storm.timer = config.stormDelayMs;
+                    state.storm.intensity = 0;
+                    state.storm.damageApplied = false;
+                }
+                if (state.storm.warned && !state.storm.resolved && !state.storm.active) {
+                    state.storm.timer -= delta;
+                    const progress = clamp(1 - state.storm.timer / config.stormDelayMs, 0, 1);
+                    state.storm.intensity = progress;
+                    const flakes = 8 + Math.floor(progress * 18);
+                    for (let i = 0; i < flakes; i++) {
+                        state.storm.particles.push({
+                            x: Math.random() * canvas.width,
+                            y: Math.random() * canvas.height,
+                            vx: -0.3 - Math.random() * 0.8,
+                            vy: -0.15 - Math.random() * 0.4,
+                            size: 2 + Math.random() * 2
+                        });
+                    }
+                    if (state.storm.timer <= 0) {
+                        state.storm.active = true;
+                        state.storm.effect = config.stormEffectMs;
+                        state.storm.intensity = 1;
+                        state.storm.damageApplied = false;
+                        if (isFinite(state.storm.remaining) && state.storm.remaining > 0) state.storm.remaining -= 1;
+                    }
+                }
+                if (state.storm.active) {
+                    if (state.storm.inIgloo) movement = 0;
+                    state.storm.effect = Math.max(0, state.storm.effect - delta);
+                    const flakes = 30;
+                    for (let i = 0; i < flakes; i++) {
+                        state.storm.particles.push({
+                            x: Math.random() * canvas.width,
+                            y: Math.random() * canvas.height,
+                            vx: -0.6 - Math.random() * 1.4,
+                            vy: -0.3 - Math.random() * 0.6,
+                            size: 2 + Math.random() * 3
+                        });
+                    }
+                    if (state.storm.effect <= 0) {
+                        state.storm.resolved = true;
+                        state.storm.active = false;
+                        state.storm.intensity = 0;
+                        state.storm.particles = [];
+                        state.storm.inIgloo = false;
+                        state.storm.safeInStorm = false;
+                        state.storm.warned = false;
+                        state.storm.nextAt = timestamp + state.level.stormIntervalMs;
+                        if (state.remainingBabies.length > 0 && !state.fieldChallenge.active) {
+                            state.activeBabies = [];
+                            spawnBabyFromRemaining();
+                        }
+                    }
+                    if (!state.storm.inIgloo && !state.storm.safeInStorm && !state.storm.damageApplied && state.storm.effect <= config.stormEffectMs / 2 && state.storm.effect > config.stormEffectMs / 2 - delta) {
+                        state.lives -= 2;
+                        state.invuln = config.invulnMs;
+                        state.storm.damageApplied = true;
+                        state.message = "The blizzard hit you hard! -2 lives";
+                        if (state.lives <= 0) {
+                            endGame("The blizzard took your last lives!");
+                        }
+                    }
+                }
+                if (state.storm.particles.length) {
+                    state.storm.particles.forEach(p => {
+                        p.x += p.vx * delta * 0.08;
+                        p.y += p.vy * delta * 0.08;
+                    });
+                    state.storm.particles = state.storm.particles.filter(p => p.y > -10 && p.x > -10);
+                }
+
+                // Yeti spawning and movement
+                if (state.distance > state.nextYetiDistance) {
+                    const isLarge = state.largeIndex < bearLargeNames.length;
+                    const name = isLarge
+                        ? bearLargeNames[state.largeIndex++ % bearLargeNames.length]
+                        : bearMediumNames[state.nextMediumIdx++ % bearMediumNames.length];
+                    if (name === "Grandma B") {
+                        state.obstacles.push({ type: "igloo", x: state.skier.x, y: canvas.height + 80, mom: "Grandma B" });
+                    } else {
+                        state.yetis.push({ x: state.skier.x, y: canvas.height + 80, size: isLarge ? "large" : "medium", name });
+                    }
+                    state.nextYetiDistance += config.yetiSpacing;
+                }
+                for (const y of state.yetis) {
+                    y.y -= movement * 1.05;
+                    y.x += (state.skier.x - y.x) * 0.02;
+                    const dy = y.y - state.skier.y;
+                    const dx = y.x - state.skier.x;
+                    if (Math.hypot(dx, dy) < 18) {
+                        if (y.name === "Grandpa B") {
+                            endGame("Grandpa B caught you!");
+                            break;
+                        } else {
+                            if (!state.invuln) {
+                                state.lives -= 3;
+                                state.invuln = config.invulnMs;
+                                state.message = "An uncle tackled you! -3 lives";
+                                if (state.lives <= 0) {
+                                    endGame("Uncles took your last lives!");
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Handle jump timer
+                if (state.skier.jump > 0) {
+                    state.skier.jump -= delta;
+                    state.skier.trickTimer = Math.max(0, state.skier.trickTimer - delta);
+                }
+
+                // Collision detection (ignore while jumping)
+                for (let i = state.obstacles.length - 1; i >= 0; i--) {
+                    const o = state.obstacles[i];
+                    if (o.dead) {
+                        o.deadTimer -= delta;
+                        if (o.deadTimer <= 0) {
+                            state.obstacles.splice(i, 1);
+                            continue;
+                        }
+                    }
+                    const dx = o.x - state.skier.x;
+                    const dy = o.y - state.skier.y;
+                    const dist = Math.hypot(dx, dy);
+
+                    if (o.type === "gift" && dist < 22) {
+                        state.score += config.giftValue;
+                        state.money += config.giftValue;
+                        if (state.lives < config.maxLives) state.lives += 1;
+                        state.obstacles.splice(i, 1);
+                        continue;
+                    }
+
+                    if (o.type === "caribou" && !o.dead && dist < 22) {
+                        state.score += config.caribouValue;
+                        state.money += config.caribouValue;
+                        o.dead = true;
+                        o.type = "steak";
+                        o.deadTimer = 400;
+                        continue;
+                    }
+
+                    if (o.type === "baby" && dist < 60) {
+                        const babyName = o.name || "Baby";
+                        if (!state.carriedBabies.includes(babyName)) {
+                            state.carriedBabies.push(babyName);
+                            state.activeBabies = state.activeBabies.filter(b => b !== babyName);
+                            state.message = "Rescued " + babyName + "! Keep them safe.";
+                        }
+                        state.obstacles.splice(i, 1);
+                        continue;
+                    }
+
+                    if (o.type === "jump" && dist < 28) {
+                        const air = config.jumpDuration * 2.2;
+                        state.skier.jump = Math.max(state.skier.jump, air);
+                        state.skier.trickTimer = air;
+                        state.skier.trickTotal = air;
+                        state.money += 75;
+                        state.message = "Big air! +$75";
+                        state.obstacles.splice(i, 1);
+                        continue;
+                    }
+
+                    if (o.type === "igloo" && dist < 55 && !state.storm.inIgloo) {
+                        state.storm.inIgloo = true;
+                        state.storm.shelterTimer = Math.max(state.storm.shelterTimer, config.shelterPauseMs);
+                        // Ensure immediate freeze if storming; otherwise 2s minimum
+                        if (state.storm.active || state.storm.warned) {
+                            state.storm.shelterTimer = Math.max(state.storm.shelterTimer, config.stormEffectMs);
+                        }
+                        state.storm.safeInStorm = state.storm.active || state.storm.warned;
+                        state.skier.speed = 0;
+                        state.lastTime = performance.now();
+                        if (state.carriedBabies.length) {
+                            let note = "";
+                            let deliveredNames = [];
+                            state.carriedBabies.forEach(baby => {
+                                const mom = babyMoms[baby];
+                                deliveredNames.push(baby);
+                                state.babiesSaved += 1;
+                                let correct = false;
+                                if (o.mom === "Grandma B") {
+                                    correct = true;
+                                    state.lives = config.maxLives;
+                                    state.money += 500;
+                                    note = "Full points for the right mom/grandma";
+                                } else if (o.mom && mom && o.mom === mom) {
+                                    correct = true;
+                                    state.lives = Math.min(config.maxLives, state.lives + 5);
+                                    state.money += 500;
+                                    note = "Full points for the right mom/grandma";
+                                }
+                                state.savedBabies.push({ name: baby, correct });
+                                if (correct) {
+                                    state.remainingBabies = state.remainingBabies.filter(b => b !== baby);
+                                    state.activeBabies = state.activeBabies.filter(b => b !== baby);
+                                }
+                            });
+                            state.message = "You brought " + deliveredNames.join(", ") + " to saftey" + (note ? " — " + note : "");
+                            if (note) {
+                                state.celebrationTimer = 1000;
+                                if (state.remainingBabies.length === 0) {
+                                    if (state.levelIndex === levels.length - 1) {
+                                        state.celebrationTimer = 3000;
+                                        state.message = "All babies safe! Entering the field—hit all targets with snowballs to finish!";
+                                        state.fieldChallenge.active = true;
+                                        state.fieldChallenge.targets = [];
+                                        const cols = 3;
+                                        const rows = 2;
+                                        for (let r = 0; r < rows; r++) {
+                                            for (let c = 0; c < cols; c++) {
+                                                state.fieldChallenge.targets.push({
+                                                    x: 150 + c * ((canvas.width - 300) / (cols - 1 || 1)),
+                                                    y: 200 + r * 140,
+                                                    size: 14
+                                                });
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            state.carriedBabies = [];
+                            state.activeBabies = state.activeBabies.filter(b => !deliveredNames.includes(b));
+                        }
+                    }
+
+                    if (state.skier.jump <= 0 && o.type !== "gift" && o.type !== "jump" && o.type !== "caribou" && o.type !== "igloo" && dist < 20 && !state.invuln) {
+                        state.lives -= 1;
+                        state.invuln = config.invulnMs;
+                        state.obstacles.splice(i, 1);
+                        if (state.lives <= 0) {
+                            endGame("You ran out of lives!");
+                            break;
+                        }
+                    }
+                }
+
+                // Snowball collisions with bears
+                for (let s = state.snowballs.length - 1; s >= 0; s--) {
+                    const ball = state.snowballs[s];
+                    let hit = false;
+                    // Field targets
+                    if (state.fieldChallenge.active && state.fieldChallenge.targets.length) {
+                        for (let t = state.fieldChallenge.targets.length - 1; t >= 0; t--) {
+                            const tgt = state.fieldChallenge.targets[t];
+                            if (Math.hypot(ball.x - tgt.x, ball.y - tgt.y) < tgt.size) {
+                                state.fieldChallenge.targets.splice(t, 1);
+                                hit = true;
+                                state.message = "Target down! " + state.fieldChallenge.targets.length + " left";
+                                if (state.fieldChallenge.targets.length === 0) {
+                                    state.fieldChallenge.completed = true;
+                                    state.message = "Field cleared! You win!";
+                                    state.celebrationTimer = 2000;
+                                    state.winner = state.character.name;
+                                    state.mode = "gameover";
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    for (let yIndex = state.yetis.length - 1; yIndex >= 0; yIndex--) {
+                        const y = state.yetis[yIndex];
+                        const dist = Math.hypot(ball.x - y.x, ball.y - y.y);
+                        if (dist < 22) {
+                            hit = true;
+                            if (y.name !== "Grandpa B") {
+                                state.score += 2;
+                                state.lives = Math.min(config.maxLives, state.lives + 2);
+                                state.message = "Snowball hit " + y.name + "! +2 lives + presents";
+                                for (let i = 0; i < 6; i++) {
+                                    state.obstacles.push({
+                                        x: Math.random() * (canvas.width - 40) + 20,
+                                        y: canvas.height + 20 + i * 15,
+                                        type: "gift"
+                                    });
+                                }
+                            } else {
+                                state.lives = Math.min(config.maxLives, state.lives + 3);
+                                state.message = "Snowball hit Grandpa B! +3 lives + bonus presents";
+                                for (let i = 0; i < 18; i++) {
+                                    state.obstacles.push({
+                                        x: Math.random() * (canvas.width - 40) + 20,
+                                        y: canvas.height + 20 + i * 10,
+                                        type: "gift"
+                                    });
+                                }
+                            }
+                            break;
+                        }
+                    }
+                    if (hit) state.snowballs.splice(s, 1);
+                }
+            }
+
+            // Level completion (non-field challenge)
+            if (state.mode === "playing" && !state.fieldChallenge.active) {
+                const lvl = state.level;
+                const distanceDone = state.distance >= (lvl.targetDistance || 10000);
+                const babiesDone = !lvl.requireAllBabies || state.remainingBabies.length === 0;
+                if (distanceDone && babiesDone) {
+                    if (state.levelIndex < levels.length - 1) {
+                        state.levelIndex += 1;
+                        state.level = levels[state.levelIndex];
+                        state.mode = "gameover";
+                        state.message = "Level complete! Press Space to start " + state.level.name;
+                    } else {
+                        // if final level, keep existing endgame flow (field or win)
+                        state.fieldChallenge.active = state.fieldChallenge.active;
+                    }
+                }
+            }
+
+            draw();
+            requestAnimationFrame(update);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const snowActive = state.storm.active || state.storm.intensity > 0;
+
+            // Course edges
+            ctx.fillStyle = "#dfeeff";
+            ctx.fillRect(0, 0, 30, canvas.height);
+            ctx.fillRect(canvas.width - 30, 0, 30, canvas.height);
+
+            // Snowboarder
+            ctx.save();
+            ctx.translate(state.skier.x, state.skier.y);
+            const trickSpin = state.skier.trickTimer > 0 ? (1 - state.skier.trickTimer / (state.skier.trickTotal || 1)) * TWO_PI : 0;
+            const drawAngle = state.skier.isSliding ? 0 : state.skier.angle;
+            ctx.rotate(drawAngle + trickSpin);
+            if (state.invuln) ctx.globalAlpha = 0.6 + 0.4 * Math.sin(state.invuln * 0.02);
+            const suitColor = state.skier.jump > 0 ? state.character.jumpSuit : state.character.suit;
+            // Snowboard
+            ctx.fillStyle = state.character.board;
+            ctx.beginPath();
+            ctx.roundRect(-24, 10, 48, 8, 4);
+            ctx.fill();
+            // Legs and torso
+            ctx.fillStyle = suitColor;
+            ctx.beginPath();
+            ctx.roundRect(-6, -4, 12, 18, 4);
+            ctx.fill();
+            // Arms/poles
+            ctx.strokeStyle = state.character.poles;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-7, 4);
+            ctx.lineTo(-18, 16);
+            ctx.moveTo(7, 4);
+            ctx.lineTo(18, 16);
+            ctx.stroke();
+            // Head
+            ctx.fillStyle = state.character.skin;
+            ctx.beginPath();
+            ctx.arc(0, -10, 8, 0, TWO_PI);
+            ctx.fill();
+            // Santa hat
+            ctx.fillStyle = "#d82121";
+            ctx.beginPath();
+            ctx.moveTo(-9, -12);
+            ctx.lineTo(9, -12);
+            ctx.lineTo(0, -22);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(-9, -12, 18, 4);
+            ctx.beginPath();
+            ctx.arc(0, -22, 3, 0, TWO_PI);
+            ctx.fill();
+            if (state.skier.jump > 0) {
+                ctx.fillStyle = "rgba(0,0,0,0.15)";
+                ctx.beginPath();
+                ctx.arc(0, 14, 8, 0, TWO_PI);
+                ctx.fill();
+            }
+            ctx.restore();
+
+            // Obstacles
+            state.obstacles.forEach(o => {
+                if (o.type === "tree") {
+                    ctx.fillStyle = snowActive ? "#8fb59d" : "#1f8f3e";
+                    ctx.beginPath();
+                    ctx.moveTo(o.x, o.y - 12);
+                    ctx.lineTo(o.x - 9, o.y + 10);
+                    ctx.lineTo(o.x + 9, o.y + 10);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.fillStyle = snowActive ? "#b8d2c6" : "#5b3a29";
+                    ctx.fillRect(o.x - 2, o.y + 10, 4, 6);
+                    if (snowActive) {
+                        ctx.fillStyle = "rgba(255,255,255,0.8)";
+                        ctx.beginPath();
+                        ctx.ellipse(o.x, o.y - 6, 10, 5, 0, 0, TWO_PI);
+                        ctx.fill();
+                    }
+                } else if (o.type === "rock") {
+                    ctx.save();
+                    ctx.translate(o.x, o.y);
+                    ctx.fillStyle = "#6b6b6b";
+                    ctx.beginPath();
+                    ctx.moveTo(-12, 6);
+                    ctx.lineTo(-6, -10);
+                    ctx.lineTo(8, -4);
+                    ctx.lineTo(14, 8);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.fillStyle = "#8a8a8a";
+                    ctx.beginPath();
+                    ctx.moveTo(-6, -2);
+                    ctx.lineTo(4, -6);
+                    ctx.lineTo(6, 2);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.restore();
+                } else if (o.type === "caribou") {
+                    const flip = o.dir < 0 ? -1 : 1;
+                    ctx.save();
+                    ctx.translate(o.x, o.y);
+                    ctx.scale(flip, 1);
+                    ctx.fillStyle = o.dead ? "#b22222" : "#8b5a2b";
+                    // Body
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, 16, 9, 0, 0, TWO_PI);
+                    ctx.fill();
+                    // Head
+                    ctx.fillStyle = o.dead ? "#922" : "#6b4220";
+                    ctx.beginPath();
+                    ctx.ellipse(12, -4, 7, 5, 0, 0, TWO_PI);
+                    ctx.fill();
+                    // Antlers
+                    ctx.strokeStyle = o.dead ? "#700" : "#4b2d13";
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(14, -10);
+                    ctx.lineTo(18, -16);
+                    ctx.moveTo(12, -10);
+                    ctx.lineTo(8, -16);
+                    ctx.stroke();
+                    // Legs
+                    const bob = Math.sin(o.walkPhase || 0) * 2;
+                    ctx.beginPath();
+                    ctx.moveTo(-10, 8);
+                    ctx.lineTo(-10, 12 + bob);
+                    ctx.moveTo(-4, 8);
+                    ctx.lineTo(-4, 12 - bob);
+                    ctx.moveTo(2, 8);
+                    ctx.lineTo(2, 12 + bob);
+                    ctx.moveTo(8, 8);
+                    ctx.lineTo(8, 12 - bob);
+                    ctx.stroke();
+                    ctx.restore();
+                } else if (o.type === "steak") {
+                    ctx.save();
+                    ctx.translate(o.x, o.y);
+                    ctx.fillStyle = "#b23a48";
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, 14, 10, 0.2, 0, TWO_PI);
+                    ctx.fill();
+                    ctx.strokeStyle = "#7a242e";
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    ctx.fillStyle = "#f2d6c5";
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, 6, 4, -0.3, 0, TWO_PI);
+                    ctx.fill();
+                    ctx.restore();
+                } else if (o.type === "jump") {
+                    ctx.save();
+                    ctx.translate(o.x, o.y);
+                    ctx.fillStyle = "#0a7ff0";
+                    ctx.beginPath();
+                    ctx.moveTo(-18, 12);
+                    ctx.lineTo(18, -10);
+                    ctx.lineTo(18, 12);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.fillStyle = "#d7eaff";
+                    ctx.beginPath();
+                    ctx.moveTo(-18, 12);
+                    ctx.lineTo(0, 2);
+                    ctx.lineTo(18, 12);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.restore();
+                } else if (o.type === "gift") {
+                    ctx.fillStyle = "#ff2d55";
+                    ctx.fillRect(o.x - 9, o.y - 9, 18, 18);
+                    ctx.strokeStyle = "#ffffff";
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(o.x - 9, o.y - 9, 18, 18);
+                    ctx.beginPath();
+                    ctx.moveTo(o.x, o.y - 9);
+                    ctx.lineTo(o.x, o.y + 9);
+                    ctx.moveTo(o.x - 9, o.y);
+                    ctx.lineTo(o.x + 9, o.y);
+                    ctx.stroke();
+                } else if (o.type === "baby") {
+                    ctx.save();
+                    ctx.translate(o.x, o.y);
+                    const isBoy = o.gender === "boy";
+                    ctx.fillStyle = isBoy ? "#4da6ff" : "#ff8ac6";
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, 12, 9, 0, 0, TWO_PI);
+                    ctx.fill();
+                    ctx.fillStyle = "#e0d3c1";
+                    ctx.fillRect(-8, 3, 16, 4);
+                    ctx.fillStyle = "#ff66b3";
+                    ctx.font = "12px Courier New, monospace";
+                    ctx.textAlign = "center";
+                    ctx.fillText(o.name || "Baby", 0, 16);
+                    ctx.textAlign = "start";
+                    ctx.restore();
+                } else if (o.type === "igloo") {
+                    ctx.save();
+                    ctx.translate(o.x, o.y);
+                    ctx.fillStyle = "#e0f0ff";
+                    ctx.beginPath();
+                    ctx.ellipse(0, 10, 44, 30, 0, Math.PI, 0);
+                    ctx.fill();
+                    ctx.strokeStyle = "#b7d0e6";
+                    ctx.stroke();
+                    ctx.fillStyle = "#b7d0e6";
+                    ctx.beginPath();
+                    ctx.moveTo(-10, 14);
+                    ctx.arc(-10, 14, 18, Math.PI, 0);
+                    ctx.closePath();
+                    ctx.fill();
+                    if (o.mom) {
+                        ctx.fillStyle = "#7a0bba";
+                        ctx.font = "12px Courier New, monospace";
+                        ctx.textAlign = "center";
+                        ctx.fillText(o.mom, 0, 34);
+                        ctx.textAlign = "start";
+                    }
+                    ctx.restore();
+                }
+            });
+
+            // Snowballs
+            ctx.fillStyle = "#b3e4ff";
+            state.snowballs.forEach(s => {
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, 5, 0, TWO_PI);
+                ctx.fill();
+            });
+
+            // Field targets
+            if (state.fieldChallenge.active && state.fieldChallenge.targets.length) {
+                state.fieldChallenge.targets.forEach(t => {
+                    // Draw uncle as small black bear head
+                    ctx.save();
+                    ctx.translate(t.x, t.y);
+                    const scale = 0.8;
+                    ctx.fillStyle = "#1a1a1a";
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, 12 * scale, 9 * scale, 0, 0, TWO_PI);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.ellipse(-7 * scale, -7 * scale, 4 * scale, 4 * scale, 0, 0, TWO_PI);
+                    ctx.ellipse(7 * scale, -7 * scale, 4 * scale, 4 * scale, 0, 0, TWO_PI);
+                    ctx.fill();
+                    ctx.fillStyle = "#d9d9d9";
+                    ctx.beginPath();
+                    ctx.ellipse(-3 * scale, -3 * scale, 2 * scale, 2 * scale, 0, 0, TWO_PI);
+                    ctx.ellipse(3 * scale, -3 * scale, 2 * scale, 2 * scale, 0, 0, TWO_PI);
+                    ctx.fill();
+                    ctx.restore();
+                });
+            }
+
+            // Black bears (formerly yetis)
+            if (state.yetis && state.yetis.length) {
+                state.yetis.forEach(y => {
+                    const scale = y.size === "large" ? 1.1 : 0.9;
+                    const bodyW = 28 * scale;
+                    const bodyH = 16 * scale;
+                    ctx.save();
+                    ctx.translate(y.x, y.y);
+                    ctx.fillStyle = "#1a1a1a";
+                    ctx.strokeStyle = "#0d0d0d";
+                    ctx.lineWidth = 2;
+                    // Body
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, bodyW / 2, bodyH / 2, 0, 0, TWO_PI);
+                    ctx.fill();
+                    ctx.stroke();
+                    // Head
+                    ctx.fillStyle = "#242424";
+                    ctx.beginPath();
+                    ctx.ellipse(bodyW * 0.35, -bodyH * 0.2, bodyW / 3.2, bodyH / 3.2, 0, 0, TWO_PI);
+                    ctx.fill();
+                    // Ears
+                    ctx.beginPath();
+                    ctx.ellipse(bodyW * 0.5, -bodyH * 0.45, 4 * scale, 4 * scale, 0, 0, TWO_PI);
+                    ctx.ellipse(bodyW * 0.25, -bodyH * 0.45, 4 * scale, 4 * scale, 0, 0, TWO_PI);
+                    ctx.fill();
+                    // Snout
+                    ctx.fillStyle = "#0f0f0f";
+                    ctx.beginPath();
+                    ctx.ellipse(bodyW * 0.4, -bodyH * 0.1, 6 * scale, 4 * scale, 0, 0, TWO_PI);
+                    ctx.fill();
+                    // Eyes
+                    ctx.fillStyle = "#d9d9d9";
+                    ctx.beginPath();
+                    ctx.ellipse(bodyW * 0.36, -bodyH * 0.22, 2 * scale, 2 * scale, 0, 0, TWO_PI);
+                    ctx.ellipse(bodyW * 0.45, -bodyH * 0.22, 2 * scale, 2 * scale, 0, 0, TWO_PI);
+                    ctx.fill();
+                    // Legs
+                    ctx.fillStyle = "#1a1a1a";
+                    ctx.fillRect(-bodyW * 0.5, bodyH * 0.2, 6 * scale, 10 * scale);
+                    ctx.fillRect(-bodyW * 0.2, bodyH * 0.25, 6 * scale, 10 * scale);
+                    ctx.fillRect(bodyW * 0.1, bodyH * 0.25, 6 * scale, 10 * scale);
+                    ctx.fillRect(bodyW * 0.4, bodyH * 0.2, 6 * scale, 10 * scale);
+                    // Name
+                    ctx.fillStyle = "#000000";
+                    ctx.font = `${14 * scale}px Courier New, monospace`;
+                    ctx.textAlign = "center";
+                    ctx.fillText(y.name, 0, bodyH * 1.35);
+                    ctx.textAlign = "start";
+                    ctx.restore();
+                });
+            }
+
+            const overlayStrength = state.storm.active ? 1 : state.storm.intensity;
+            if (overlayStrength > 0) {
+                const alpha = state.storm.active ? 0.9 : 0.25 + 0.5 * overlayStrength;
+                ctx.fillStyle = "rgba(255,255,255," + alpha.toFixed(2) + ")";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "rgba(255,255,255,0.9)";
+                state.storm.particles.forEach(p => {
+                    ctx.fillRect(p.x, p.y, p.size, p.size);
+                });
+            }
+            // Celebration overlay
+            if (state.celebrationTimer > 0) {
+                const intensity = state.celebrationTimer / 1000;
+                for (let i = 0; i < 80; i++) {
+                    const x = Math.random() * canvas.width;
+                    const y = Math.random() * canvas.height;
+                    const size = 3 + Math.random() * 4;
+                    ctx.fillStyle = i % 3 === 0 ? "gold" : i % 3 === 1 ? "#ff69b4" : "#5ad1ff";
+                    ctx.globalAlpha = 0.4 + 0.6 * intensity;
+                    ctx.beginPath();
+                    ctx.arc(x, y, size, 0, TWO_PI);
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+            }
+
+            // HUD
+            ctx.fillStyle = "black";
+            ctx.font = "16px Courier New, monospace";
+            ctx.fillText("Distance: " + Math.floor(state.distance), 10, 24);
+            ctx.fillText("Best: " + state.best, 10, 46);
+            ctx.fillText("Money: $" + state.money, canvas.width - 180, 24);
+            ctx.fillText("Babies saved: " + state.babiesSaved, canvas.width - 180, 46);
+            if (state.skier.jump > 0) {
+                ctx.fillText("Jump!", canvas.width - 90, 46);
+            }
+            if (state.carriedBabies.length) {
+                ctx.fillStyle = "#0f3b74";
+                ctx.fillText("Carrying: " + state.carriedBabies.join(", "), 10, 70);
+                ctx.fillStyle = "black";
+            }
+            if (state.mode === "playing" && state.message) {
+                ctx.fillStyle = "#0f3b74";
+                ctx.fillText(state.message, 10, 90);
+            }
+            // Lives
+            ctx.fillStyle = "#c72626";
+            const heartsWidth = state.lives * 24;
+            const heartStart = (canvas.width - heartsWidth) / 2;
+            for (let i = 0; i < state.lives; i++) {
+                const x = heartStart + i * 24;
+                const y = 20;
+                ctx.beginPath();
+                ctx.moveTo(x + 12, y);
+                ctx.bezierCurveTo(x + 12, y - 4, x + 4, y - 4, x + 4, y);
+                ctx.bezierCurveTo(x + 4, y + 4, x + 12, y + 8, x + 12, y + 12);
+                ctx.bezierCurveTo(x + 12, y + 8, x + 20, y + 4, x + 20, y);
+                ctx.bezierCurveTo(x + 20, y - 4, x + 12, y - 4, x + 12, y);
+                ctx.fill();
+            }
+
+            // Saved babies list with icons
+            if (state.savedBabies.length) {
+                ctx.fillStyle = "#000";
+                ctx.fillText("Saved babies:", canvas.width - 180, 70);
+                state.savedBabies.forEach((entry, idx) => {
+                    const baby = entry.name || entry;
+                    const isBoy = babyGenders[baby] === "boy";
+                    const iconY = 90 + idx * 18;
+                    ctx.fillStyle = isBoy ? "#4da6ff" : "#ff8ac6";
+                    ctx.beginPath();
+                    ctx.arc(canvas.width - 190, iconY - 6, 6, 0, TWO_PI);
+                    ctx.fill();
+                    ctx.fillStyle = "#7a0bba";
+                    ctx.fillText(baby + (entry.correct ? " 🏆" : ""), canvas.width - 178, iconY - 2);
+                });
+            }
+
+            // Persistent best score at bottom center
+            ctx.save();
+            ctx.fillStyle = "#0f3b74";
+            ctx.font = "16px Courier New, monospace";
+            ctx.textAlign = "center";
+            ctx.fillText("Best distance: " + state.best, canvas.width / 2, canvas.height - 14);
+            ctx.textAlign = "start";
+            ctx.restore();
+
+            // Overlays
+            if (state.mode === "menu") {
+                const choice = characters[state.characterIndex];
+                if (state.menuScreen === 1) {
+                    drawCenterText(
+                        "Saving Christmas with Santa",
+                        [
+                            "Welcome to Saving Christmas with Santa.",
+                            "On Christmas Eve, Santa was flying from the North Pole to bring",
+                            "presents to all the good boys and girls. He noticed a green glow",
+                            "on the horizon and sent his reindeer to investigate.",
+                            "As he came closer, he saw it was the Green Grinch with a sled full",
+                            "of babies. The Grinch had been feeling very hateful and had stolen",
+                            "all the little boys and girls from their families and was bringing",
+                            "them back to his cave.",
+                            "Santa knew he had to do something to save them. He took his sleigh",
+                            "and crashed into the Grinch, knocking the Grinch to the ground.",
+                            "Unfortunately, many of Santa’s presents also fell to the ground",
+                            "over the wintery mountains.",
+                            "Sadly, the evil spirit of the Grinch found the little children’s",
+                            "uncles, who were searching for them, and turned them all into",
+                            "mean bears.",
+                            "Santa now needs your help. Strap on your snowboard and:",
+                            "1. Help collect Santa’s presents (you $150 per present and more lives)",
+                            "2. Look after yourself – hunt Cariboo by finding them and turning",
+                            "   them into meat (press Space bar, if you don’t turn them into",
+                            "   meat, they’ll hurt you).",
+                            "3. Build igloos when winter storms come so you don’t freeze",
+                            "   (press B, costs $100)",
+                            "4. As you get further into the mountains, you’ll find the little",
+                            "   children. Pick them up and bring them to igloos with the right",
+                            "   parent.",
+                            "5. Do cool jumps, but don’t hurt yourself on the rocks and the trees.",
+                            "6. Stay away from the uncles till you’ve saved all the babies. Then",
+                            "   you can help save them by throwing snowballs at their faces (press M).",
+                            "Good luck!",
+                            "Press Space for character select & controls."
+                        ],
+                        "#0f3b74",
+                        40
+                    );
+                } else {
+                    drawCenterText(
+                        "BouwCuz Boarding",
+                        [
+                            "Character: " + choice.name + " (←/→) • Level: " + state.level.name,
+                            "Character example shown on screen →",
+                            "Controls: Space start/jump/hunt • Arrows steer • B igloo • M snowball • P pause • Q field cheat",
+                            "Mission:",
+                            "1) Collect presents ($150 each + small life boost).",
+                            "2) Hunt caribou (Space) before they hurt you.",
+                            "3) Build igloos during storms (B, $100) to stay warm.",
+                            "4) Rescue babies; deliver to the right igloo parent.",
+                            "5) Hit jumps; avoid rocks/trees.",
+                            "6) After all babies are safe, throw snowballs at uncles (M).",
+                            "Press Space to start."
+                        ],
+                        "#0f3b74"
+                    );
+                }
+            } else if (state.mode === "paused") {
+                drawCenterText("Paused", "Press P to resume", "#0f3b74");
+            } else if (state.mode === "gameover") {
+                drawFullScreenWin(state.message, state.winner ? "Winner: " + state.winner + "  •  Money: $" + state.money + "  •  Press Space or R to retry" : "Press Space or R to retry");
+            }
+        }
+
+        function drawCenterText(title, subtitle, color, yOffset = 0) {
+            ctx.save();
+            const lines = Array.isArray(subtitle) ? subtitle : [subtitle];
+            const boxWidth = 560;
+            const boxHeight = 80 + lines.length * 22;
+            const boxX = canvas.width / 2 - boxWidth / 2;
+            const boxY = canvas.height / 2 - boxHeight / 2 + yOffset;
+            ctx.fillStyle = "rgba(255,255,255,0.9)";
+            ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+            ctx.strokeStyle = "rgba(0,0,0,0.12)";
+            ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+            ctx.fillStyle = color;
+            ctx.textAlign = "center";
+            ctx.font = "28px Courier New, monospace";
+            ctx.fillText(title, canvas.width / 2, boxY + 34);
+            ctx.font = "16px Courier New, monospace";
+            lines.forEach((line, idx) => {
+                ctx.fillText(line, canvas.width / 2, boxY + 70 + idx * 20);
+            });
+            ctx.textAlign = "start";
+            ctx.restore();
+        }
+
+        function wrapLines(text, maxWidth, font) {
+            if (!text) return [];
+            ctx.save();
+            ctx.font = font;
+            const words = text.split(" ");
+            const lines = [];
+            let line = "";
+            words.forEach(w => {
+                const test = line ? line + " " + w : w;
+                if (ctx.measureText(test).width <= maxWidth) {
+                    line = test;
+                } else {
+                    if (line) lines.push(line);
+                    line = w;
+                }
+            });
+            if (line) lines.push(line);
+            ctx.restore();
+            return lines;
+        }
+
+        function drawFullScreenWin(title, subtitle) {
+            ctx.save();
+            ctx.fillStyle = "rgba(255,255,255,0.9)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#0f3b74";
+            ctx.textAlign = "center";
+            const centerX = canvas.width / 2;
+            let currentY = canvas.height / 2 - 30;
+
+            ctx.font = "32px Courier New, monospace";
+            const titleLines = wrapLines(title || "You Win!", Math.min(canvas.width * 0.85, 600), ctx.font);
+            titleLines.forEach((line, idx) => {
+                ctx.fillText(line, centerX, currentY + idx * 34);
+            });
+            currentY += titleLines.length * 34 + 6;
+
+            ctx.font = "22px Courier New, monospace";
+            const lines = wrapLines(subtitle || "", Math.min(canvas.width * 0.8, 600), ctx.font);
+            lines.forEach((line, idx) => {
+                ctx.fillText(line, centerX, currentY + idx * 24);
+            });
+            ctx.textAlign = "start";
+            ctx.restore();
+        }
+
+        requestAnimationFrame(update);
+    </script>
+</body>
+
+</html>
