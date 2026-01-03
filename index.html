@@ -323,6 +323,7 @@
 
         function buildIgloo() {
             if (state.mode !== "playing") return;
+            if (state.fieldChallenge.active) return;
             if (state.money < config.iglooCost) return;
             state.money -= config.iglooCost;
             state.message = "Igloo built! Ride out the storm.";
@@ -367,6 +368,7 @@
                         });
                     }
                 }
+                state.obstacles = state.obstacles.filter(o => o.type !== "igloo");
                 state.message = "Cheat: Field challenge!";
             } else if (state.mode === "playing" && (e.key === "u" || e.key === "U")) {
                 // Spawn a burst of presents
@@ -628,6 +630,9 @@
             if (state.celebrationTimer > 0) state.celebrationTimer = Math.max(0, state.celebrationTimer - delta);
 
             if (state.mode === "playing") {
+                if (state.fieldChallenge.active) {
+                    state.obstacles = state.obstacles.filter(o => o.type !== "igloo");
+                }
                 // Auto-exit igloo when no storm and timer elapsed (failsafe)
                 if (!state.storm.active && !state.storm.warned) {
                     state.storm.safeInStorm = false;
@@ -674,7 +679,13 @@
                         state.message = "You're in an igloo. Press Space to leave.";
                     }
                 }
-                state.skier.x += Math.sin(state.skier.angle) * movement;
+                let lateral = Math.sin(state.skier.angle) * movement;
+                if (state.fieldChallenge.active && Math.abs(movement) < 0.5) {
+                    const manualStep = delta * 0.25;
+                    if (keys["ArrowLeft"]) lateral -= manualStep;
+                    if (keys["ArrowRight"]) lateral += manualStep;
+                }
+                state.skier.x += lateral;
                 state.skier.x = Math.max(20, Math.min(canvas.width - 20, state.skier.x));
                 if (state.fieldChallenge.active) {
                     state.skier.y += -Math.cos(state.skier.angle) * movement * 0.6;
@@ -884,7 +895,7 @@
                         continue;
                     }
 
-                    if (o.type === "igloo" && dist < 55 && !state.storm.inIgloo && state.storm.exitCooldown <= 0) {
+                    if (o.type === "igloo" && dist < 55 && !state.storm.inIgloo && state.storm.exitCooldown <= 0 && !state.fieldChallenge.active) {
                         state.storm.inIgloo = true;
                         state.storm.shelterTimer = Math.max(state.storm.shelterTimer, config.shelterPauseMs);
                         // Ensure immediate freeze if storming; otherwise 2s minimum
@@ -954,6 +965,8 @@
                                         }
                                     }
                                 }
+                                // Clear igloos before field challenge so no one gets stuck
+                                state.obstacles = state.obstacles.filter(o => o.type !== "igloo");
                             }
                             state.carriedBabies = [];
                             state.activeBabies = state.activeBabies.filter(b => !deliveredNames.includes(b));
@@ -1523,9 +1536,12 @@
         function drawCenterText(title, subtitle, color, yOffset = 0) {
             ctx.save();
             const lines = Array.isArray(subtitle) ? subtitle : [subtitle];
-            const boxWidth = 560;
-            const boxHeight = 80 + lines.length * 22;
-            const boxX = canvas.width / 2 - boxWidth / 2;
+            const small = canvas.width < 520;
+            const boxWidth = Math.min(560, canvas.width - 24);
+            const bodySize = small ? 14 : 16;
+            const lineHeight = bodySize + 4;
+            const boxHeight = 80 + lines.length * lineHeight;
+            const boxX = (canvas.width - boxWidth) / 2;
             const boxY = canvas.height / 2 - boxHeight / 2 + yOffset;
             ctx.fillStyle = "rgba(255,255,255,0.9)";
             ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
@@ -1533,11 +1549,11 @@
             ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
             ctx.fillStyle = color;
             ctx.textAlign = "center";
-            ctx.font = "28px Courier New, monospace";
+            ctx.font = `${small ? 22 : 28}px Courier New, monospace`;
             ctx.fillText(title, canvas.width / 2, boxY + 34);
-            ctx.font = "16px Courier New, monospace";
+            ctx.font = `${bodySize}px Courier New, monospace`;
             lines.forEach((line, idx) => {
-                ctx.fillText(line, canvas.width / 2, boxY + 70 + idx * 20);
+                ctx.fillText(line, canvas.width / 2, boxY + 70 + idx * lineHeight);
             });
             ctx.textAlign = "start";
             ctx.restore();
